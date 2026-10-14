@@ -1,0 +1,10 @@
+# Python'un ürettiği geçici dosyalar ve yerel ortam — depoya girmesin
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+reports/
+.claude/
+.env
