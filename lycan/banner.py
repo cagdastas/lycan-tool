@@ -56,13 +56,35 @@ def first_line(text):
     return ""
 
 
+# Dağıtım işaretleri. Bu dağıtımlar açığı kapatır ama sürüm numarasını değiştirmez
+# ("backport"). O zaman sürüme bakarak bulunan CVE'ler yalnızca "olası" olur.
+DISTROS = [
+    ("Debian", r"Debian|deb\d+u\d+"),
+    ("Ubuntu", r"Ubuntu"),
+    ("Raspbian", r"Raspbian"),
+    ("Red Hat", r"Red Hat|CentOS|Rocky|AlmaLinux|\.el\d+"),
+    ("Fedora", r"Fedora"),
+    ("FreeBSD", r"FreeBSD"),
+]
+
+
+def distro(text):
+    """Banner'da bir Linux/BSD dağıtımının adı geçiyorsa onu döner."""
+    for name, pattern in DISTROS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return name
+    return None
+
+
 def describe(text):
-    """Banner yazısından ürün ve sürümü çıkarır. Tanımazsa tahmin yapmaz."""
+    """Banner yazısından ürün, sürüm ve dağıtımı çıkarır. Tanımazsa tahmin yapmaz."""
+    info = {"product": None, "version": None, "raw": first_line(text), "distro": distro(text)}
     for product, pattern in PATTERNS:
         match = re.search(pattern, text, re.DOTALL)
         if match:
-            return {"product": product, "version": match.group(1), "raw": first_line(text)}
-    return {"product": None, "version": None, "raw": first_line(text)}
+            info["product"], info["version"] = product, match.group(1)
+            break
+    return info
 
 
 def _tls(sock):

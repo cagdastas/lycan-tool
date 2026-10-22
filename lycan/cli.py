@@ -10,6 +10,7 @@ import sys
 
 from lycan import __version__
 from lycan import banner
+from lycan import cve
 from lycan import hunt
 from lycan import scan
 
@@ -52,6 +53,9 @@ def cmd_hunt(args):
         print("No open ports found.")
         return
 
+    if args.cve:
+        args.banner = True  # CVE aramak için önce sürümü okumak gerekir
+
     if not args.banner:
         print()
         print(f"{'PORT':>6}  {'SERVICE':<12}NOTE")
@@ -64,6 +68,8 @@ def cmd_hunt(args):
         print(f"{'PORT':>6}  {'SERVICE':<12}{'VERSION':<30}NOTE")
         for f in found:
             print(f"{f['port']:>6}  {f['service']:<12}{version_text(banners[f['port']]):<30}{f['note']}")
+        if args.cve:
+            print_cves(found, banners)
     print()
     print(f"{len(found)} open of {len(ports)} checked.")
 
@@ -75,6 +81,40 @@ def version_text(info):
     if info["product"]:
         return f"{info['product']} {info['version']}"
     return info["raw"][:28] or "-"
+
+
+def print_cves(found, banners):
+    """Her tanınan sürüm için NVD'deki olası açıkları yazar (en yüksek puanlı 5 tanesi)."""
+    print()
+    print("Looking up known vulnerabilities on NVD.")
+    print("Only the product and version are sent (e.g. \"OpenSSH 9.2p1\"), never the address.")
+    for f in found:
+        info = banners[f["port"]]
+        if not info or not info["product"]:
+            continue
+        name = f"{info['product']} {info['version']}"
+        print()
+        try:
+            cves = cve.lookup(info["product"], info["version"])
+        except cve.NvdError as error:
+            print(f"{f['port']:>6}  {name}: lookup failed. {error}")
+            continue
+        if cves is None:
+            print(f"{f['port']:>6}  {name}: not in Lycan's product list yet, skipped.")
+            continue
+        if not cves:
+            print(f"{f['port']:>6}  {name}: no known CVEs in NVD.")
+            continue
+
+        counts = [f"{sum(c['severity'] == s for c in cves)} {s.lower()}" for s in ("CRITICAL", "HIGH")]
+        print(f"{f['port']:>6}  {name}: {len(cves)} possible CVEs ({', '.join(counts)})")
+        if info["distro"]:
+            print(f"        {info['distro']} build: fixes are often added without changing the version.")
+            print("        Check the installed package version with your package manager before acting.")
+        for c in cves[:5]:
+            print(f"        {c['id']:<16}{c['score']:>4.1f} {c['severity']:<9}{c['summary'][:70]}")
+        if len(cves) > 5:
+            print(f"        +{len(cves) - 5} more: https://nvd.nist.gov/vuln/search")
 
 
 def build_parser():
@@ -102,6 +142,10 @@ def build_parser():
     hunt_cmd.add_argument(
         "--banner", action="store_true",
         help="also read each open port's greeting to show program and version",
+    )
+    hunt_cmd.add_argument(
+        "--cve", action="store_true",
+        help="also look up known vulnerabilities for each version on NVD (needs internet; implies --banner)",
     )
     hunt_cmd.set_defaults(func=cmd_hunt)
 

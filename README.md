@@ -44,6 +44,19 @@ lycan hunt 192.168.1.20 --banner
     80  http        Apache 2.4.62                 Web server without encryption.
 ```
 
+Add `--cve` to also look up known vulnerabilities (CVEs) for each version found, in the US National Vulnerability Database (NVD). It needs internet and implies `--banner`. Only the product and version are sent (for example `OpenSSH 9.2p1`), never the address you scanned. Answers are cached for one day in `~/.lycan/cve-cache.json`. Without a key NVD allows about 5 requests per 30 seconds, so Lycan waits between requests; set `NVD_API_KEY` (free from NVD) to go faster.
+
+```
+lycan hunt 192.168.1.20 --cve
+
+    22  OpenSSH 9.2p1: 35 possible CVEs (3 critical, 10 high)
+        Debian build: fixes are often added without changing the version.
+        Check the installed package version with your package manager before acting.
+        CVE-2023-38408   9.8 CRITICAL The PKCS#11 feature in ssh-agent in OpenSSH before 9.3p2 ...
+```
+
+These are **possible** matches: NVD only looks at the version number. Linux distributions such as Debian and Ubuntu fix bugs without changing it, so a listed CVE may already be fixed on your machine.
+
 Limits, on purpose: one machine at a time, at most 1024 ports per run, 50 checks at once. Public addresses and names that resolve to them are refused before any packet is sent.
 
 ### `lycan version`
