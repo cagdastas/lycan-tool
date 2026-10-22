@@ -34,6 +34,16 @@ lycan hunt 192.168.1.20
 lycan hunt 192.168.1.20 --ports 1-1024
 ```
 
+Add `--banner` to also read what each open port says when you connect (its "banner"), and show the program and version behind it. Web ports get one `HEAD /` request. Anything that is not plain text is stripped before it is printed.
+
+```
+lycan hunt 192.168.1.20 --banner
+
+  PORT  SERVICE     VERSION                       NOTE
+    22  ssh         OpenSSH 9.2p1                 Remote login. ...
+    80  http        Apache 2.4.62                 Web server without encryption.
+```
+
 Limits, on purpose: one machine at a time, at most 1024 ports per run, 50 checks at once. Public addresses and names that resolve to them are refused before any packet is sent.
 
 ### `lycan version`
@@ -41,7 +51,7 @@ Prints the installed version.
 
 ## What it does not do
 
-No exploits, no password guessing, no hiding from detection, no scanning of address ranges. It only knocks on doors and tells you which ones are open.
+No exploits, no password guessing, no hiding from detection, no scanning of address ranges. It only knocks on doors, tells you which ones are open and, if you ask, reads the name plate on each door.
 
 ## Development
 

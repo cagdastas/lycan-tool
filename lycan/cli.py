@@ -9,6 +9,7 @@ import argparse
 import sys
 
 from lycan import __version__
+from lycan import banner
 from lycan import hunt
 from lycan import scan
 
@@ -51,12 +52,29 @@ def cmd_hunt(args):
         print("No open ports found.")
         return
 
-    print()
-    print(f"{'PORT':>6}  {'SERVICE':<12}NOTE")
-    for f in found:
-        print(f"{f['port']:>6}  {f['service']:<12}{f['note']}")
+    if not args.banner:
+        print()
+        print(f"{'PORT':>6}  {'SERVICE':<12}NOTE")
+        for f in found:
+            print(f"{f['port']:>6}  {f['service']:<12}{f['note']}")
+    else:
+        print("Reading banners...")
+        banners = banner.grab_all(ip, [f["port"] for f in found])
+        print()
+        print(f"{'PORT':>6}  {'SERVICE':<12}{'VERSION':<30}NOTE")
+        for f in found:
+            print(f"{f['port']:>6}  {f['service']:<12}{version_text(banners[f['port']]):<30}{f['note']}")
     print()
     print(f"{len(found)} open of {len(ports)} checked.")
+
+
+def version_text(info):
+    """Tabloda gösterilecek sürüm: tanınırsa "OpenSSH 9.2p1", tanınmazsa ham satır."""
+    if info is None:
+        return "-"  # program hiç konuşmadı
+    if info["product"]:
+        return f"{info['product']} {info['version']}"
+    return info["raw"][:28] or "-"
 
 
 def build_parser():
@@ -81,6 +99,10 @@ def build_parser():
     hunt_cmd.add_argument("target", help="IP address or name, e.g. 192.168.1.20")
     hunt_cmd.add_argument("--ports", help="e.g. 22,80,8000-8100 (default: 20 common ports)")
     hunt_cmd.add_argument("--timeout", type=float, default=0.5, help="seconds per port (default 0.5)")
+    hunt_cmd.add_argument(
+        "--banner", action="store_true",
+        help="also read each open port's greeting to show program and version",
+    )
     hunt_cmd.set_defaults(func=cmd_hunt)
 
     return parser

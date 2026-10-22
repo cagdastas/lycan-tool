@@ -14,6 +14,11 @@ Kullanıcıyla Türkçe konuş; her adımı kısa ve sade anlat.
 - ✅ Aşama 1: `lycan scan` (psutil ile dinleyen portlar, network/local).
 - ✅ Aşama 2 (basit): `lycan hunt <hedef>` TCP connect taraması. Yasal kilit: yalnızca özel ağ adresleri
   (`hunt.check_allowed`), tek makine, en fazla 1024 port, 50 eşzamanlı. Bu kilidi gevşetme; testler (`tests/`) korur.
+- 🔶 Aşama 3 (başladı, 2026-10-23): 3a+3b tamam: `lycan hunt <hedef> --banner` (`lycan/banner.py`): açık kapının
+  ilk sözünü okur (web kapılarına tek `HEAD /`, 443/8443 TLS), regex ile ürün+sürüm çıkarır, tanımazsa ham satırı
+  gösterir; uzaktan gelen yazı ekrana basılmadan temizlenir (ESC kodları). Sırada 3c: CVE arama
+  (önerilen: NVD API, `urllib`, isteğe bağlı `--cve`, önbellek; Debian gibi dağıtımlar yamayı sürüm
+  değiştirmeden yapar → "olası açık" de, dağıtım ekini göster).
 - GitHub: `cagtas0/lycan-tool` (public). Kurulum: `pip install git+https://github.com/cagtas0/lycan-tool.git`.
 - Site (lycansoc.com) pasif kalır; port taraması asla siteden yapılmaz. Sitede yalnızca CLI'yı anlatan bölüm olur.
 
