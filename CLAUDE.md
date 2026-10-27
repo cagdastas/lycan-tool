@@ -29,7 +29,7 @@ Kullanıcıyla Türkçe konuş; her adımı kısa ve sade anlat.
   çıkış kodu 1, `--update` kabul eder.
   Sırada: Kali VM'de gerçek deneme, sonra 0.2.0 + push (kullanıcıya sor). Eksikler: UDP, yapılandırma
   kontrolleri (Redis/Mongo kimliksiz erişim; FTP anonim giriş yalnızca açık seçenekle).
-- GitHub: `cagtas0/lycan-tool` (public). Kurulum: `pip install git+https://github.com/cagtas0/lycan-tool.git`.
+- GitHub: `cagdastas/lycan-tool` (public). Kurulum: `pip install git+https://github.com/cagdastas/lycan-tool.git`.
 - Site (lycansoc.com) pasif kalır; port taraması asla siteden yapılmaz. Sitede yalnızca CLI'yı anlatan bölüm olur.
 
 ## Yol haritası

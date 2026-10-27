@@ -12,7 +12,7 @@ Companion to the passive website scanner at https://lycansoc.com.
 Needs Python 3.10 or newer.
 
 ```
-pip install git+https://github.com/cagtas0/lycan-tool.git
+pip install git+https://github.com/cagdastas/lycan-tool.git
 ```
 
 ## Commands
