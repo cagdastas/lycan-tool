@@ -60,7 +60,7 @@ def run(args, ip, ports):
     print(f"Hunting {args.target} ({ip}) on {len(ports)} ports...")
     return results.collect(
         args.target, ip, ports, timeout=args.timeout,
-        read_banners=args.banner, find_cves=args.cve,
+        read_banners=args.banner, find_cves=args.cve, run_checks=args.checks,
     )
 
 
@@ -92,10 +92,26 @@ def print_result(result):
         for f in found:
             version = results.version_text(f["banner"])[:28]
             print(f"{f['port']:>6}  {f['service']:<12}{version:<30}{f['note']}")
+    if result.get("checks"):
+        print_findings(result)
     if result["cve_lookup"]:
         print_cves(found)
     print()
     print(f"{len(found)} open of {result['ports_checked']} checked.")
+
+
+def print_findings(result):
+    """Yapılandırma kontrollerinin sonucunu yazar."""
+    print()
+    pairs = results.all_findings(result)
+    checked = sum(p.get("findings") is not None for p in result["open"])
+    if not pairs:
+        print(f"Configuration checks: {checked} service(s) checked, no problems found.")
+        return
+    print(f"Configuration checks: {len(pairs)} problem(s) found.")
+    for port, f in pairs:
+        print(f"  {f['severity']:<7}port {port}: {f['title']}")
+        print(f"          Fix: {f['fix']}")
 
 
 def print_cves(found):
@@ -197,6 +213,11 @@ def add_hunt_options(cmd):
     cmd.add_argument(
         "--cve", action="store_true",
         help="also look up known vulnerabilities for each version on NVD (needs internet; implies --banner)",
+    )
+    cmd.add_argument(
+        "--checks", action="store_true",
+        help="also check if Redis, Elasticsearch, MongoDB or FTP let anyone in "
+        "(one harmless request each; FTP tries the public 'anonymous' login once)",
     )
 
 

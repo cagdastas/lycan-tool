@@ -35,6 +35,11 @@ COMMON_PORTS = {
     27017: ("mongodb", "Database, often runs with no password."),
 }
 
+# Varsayılan listede olmayan ama adını bildiğimiz kapılar (--ports ile taranınca tanınır)
+MORE_PORTS = {
+    9200: ("elasticsearch", "Search database, often runs with no login."),
+}
+
 MAX_PORTS = 1024  # bir seferde en fazla bu kadar kapı (ağı boğmamak için)
 
 
@@ -104,6 +109,6 @@ def hunt(ip, ports, timeout=0.5):
 
     found = []
     for port in open_ports:
-        service, note = COMMON_PORTS.get(port, ("?", ""))
+        service, note = COMMON_PORTS.get(port) or MORE_PORTS.get(port, ("?", ""))
         found.append({"port": port, "service": service, "note": note})
     return found

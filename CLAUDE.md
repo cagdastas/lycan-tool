@@ -27,8 +27,11 @@ Kullanıcıyla Türkçe konuş; her adımı kısa ve sade anlat.
   yalnızca `CVE-\d{4}-\d+` kimliğe. `lycan watch <hedef>` (`lycan/watch.py`): ilk çalıştırma temeli
   `~/.lycan/baselines/<ip>.json`'a yazar; sonra açılan/kapanan kapı, sürüm değişimi, yeni CVE; fark varsa
   çıkış kodu 1, `--update` kabul eder.
-  Sırada: Kali VM'de gerçek deneme, sonra 0.2.0 + push (kullanıcıya sor). Eksikler: UDP, yapılandırma
-  kontrolleri (Redis/Mongo kimliksiz erişim; FTP anonim giriş yalnızca açık seçenekle).
+- 🔶 Yapılandırma kontrolleri (2026-10-28): `--checks` (`lycan/checks.py`), hizmet adına göre tek zararsız istek:
+  Redis `PING`, Elasticsearch `GET /` (9200 varsayılan listede değil, `hunt.MORE_PORTS`), MongoDB OP_MSG
+  `listDatabases` (elle yazılmış küçük BSON), FTP tek `anonymous` girişi. Bulgular `findings` alanında;
+  rapor "Configuration problems" + yapılacaklar listesinin başı; watch `new_finding`.
+  Sırada: Kali VM'de gerçek deneme, sonra 0.2.0 (kullanıcıya sor). Eksik: UDP.
 - GitHub: `cagdastas/lycan-tool` (public). Kurulum: `pip install git+https://github.com/cagdastas/lycan-tool.git`.
 - Site (lycansoc.com) pasif kalır; port taraması asla siteden yapılmaz. Sitede yalnızca CLI'yı anlatan bölüm olur.
 

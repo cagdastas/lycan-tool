@@ -40,6 +40,11 @@ def compare(old, new):
             if was != now:
                 changes.append({"kind": "version", "port": port,
                                 "text": f"Port {port} changed: {was} -> {now}"})
+        if a.get("findings") is not None and b.get("findings") is not None:
+            for f in b["findings"]:
+                if f["id"] not in {x["id"] for x in a["findings"]}:
+                    changes.append({"kind": "new_finding", "port": port,
+                                    "text": f"Port {port}: new problem: {f['title']}"})
         if a.get("cves") is not None and b.get("cves") is not None:
             fresh = sorted({c["id"] for c in b["cves"]} - {c["id"] for c in a["cves"]})
             if fresh:

@@ -59,6 +59,23 @@ These are **possible** matches: NVD only looks at the version number. Linux dist
 
 Limits, on purpose: one machine at a time, at most 1024 ports per run, 50 checks at once. Public addresses and names that resolve to them are refused before any packet is sent.
 
+Add `--checks` to see whether a database or file server lets anyone in without a password. Lycan asks each service one harmless question and reads nothing else:
+
+| Service | Question | Problem if |
+|---|---|---|
+| Redis (6379) | `PING` | it answers `+PONG` without a password |
+| Elasticsearch (9200, give it with `--ports`) | `GET /` | it shows cluster information without a login |
+| MongoDB (27017) | `listDatabases` | it lists databases without a login |
+| FTP (21) | one login as `anonymous` | the public anonymous login works |
+
+```
+lycan hunt 192.168.1.20 --checks
+
+Configuration checks: 1 problem(s) found.
+  HIGH   port 6379: Redis answers without a password.
+          Fix: Set 'requirepass' in redis.conf (or use ACL users) and bind Redis to 127.0.0.1.
+```
+
 Add `--save hunt.json` to keep the result as a JSON file for `report` and later comparison.
 
 ### `lycan report <file.json>`
@@ -82,7 +99,7 @@ Prints the installed version.
 
 ## What it does not do
 
-No exploits, no password guessing, no hiding from detection, no scanning of address ranges. It only knocks on doors, tells you which ones are open and, if you ask, reads the name plate on each door.
+No exploits, no password guessing (the only login it ever tries is FTP's public `anonymous`, with `--checks`), no hiding from detection, no scanning of address ranges. It only knocks on doors, tells you which ones are open and, if you ask, reads the name plate on each door.
 
 ## Development
 

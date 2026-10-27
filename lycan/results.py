@@ -8,7 +8,7 @@ sonucu birçok yerde kullanılır.
 import json
 from datetime import datetime, timezone
 
-from lycan import __version__, banner, cve, hunt
+from lycan import __version__, banner, checks, cve, hunt
 
 FORMAT = 1  # dosya biçiminin sürümü; yapı değişirse artar
 
@@ -16,7 +16,8 @@ FORMAT = 1  # dosya biçiminin sürümü; yapı değişirse artar
 RISKY_PORTS = {21, 23, 135, 139, 445, 3306, 3389, 5432, 5900, 6379, 27017}
 
 
-def collect(target, ip, ports, timeout=0.5, read_banners=False, find_cves=False, progress=print):
+def collect(target, ip, ports, timeout=0.5, read_banners=False, find_cves=False, run_checks=False,
+            progress=print):
     """Taramayı yapar ve sonucu sözlük olarak döner. progress: ara mesajları yazan fonksiyon."""
     if find_cves:
         read_banners = True  # CVE aramak için önce sürümü okumak gerekir
@@ -33,7 +34,13 @@ def collect(target, ip, ports, timeout=0.5, read_banners=False, find_cves=False,
         progress("Looking up known vulnerabilities on NVD.")
         progress('Only the product and version are sent (e.g. "OpenSSH 9.2p1"), never the address.')
 
+    findings = {}
+    if run_checks and found:
+        progress("Checking configuration (one harmless question per service)...")
+        findings = checks.run(ip, found)
+
     for f in found:
+        f["findings"] = findings.get(f["port"])  # None: bu kapı için kontrol yok ya da istenmedi
         info = banners.get(f["port"])
         f["banner"] = info
         f["cves"] = None  # None: hiç sorulmadı ya da ürün Lycan'ın listesinde yok
@@ -53,6 +60,7 @@ def collect(target, ip, ports, timeout=0.5, read_banners=False, find_cves=False,
         "ports_checked": len(ports),
         "banners": read_banners,
         "cve_lookup": find_cves,
+        "checks": run_checks,
         "open": found,
     }
 
@@ -73,6 +81,13 @@ def counts(cves):
         if c["severity"] in result:
             result[c["severity"]] += 1
     return result
+
+
+def all_findings(result):
+    """Tüm yapılandırma bulguları, kapı numarasıyla: [(kapı, bulgu), ...], yüksek risk önce."""
+    order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    pairs = [(p["port"], f) for p in result["open"] for f in p.get("findings") or []]
+    return sorted(pairs, key=lambda pair: order.get(pair[1]["severity"], 3))
 
 
 def save(result, path):

@@ -10,7 +10,7 @@ tarayıcı onu kod olarak değil, düz yazı olarak gösterir (XSS koruması).
 import html
 import re
 
-from lycan.results import RISKY_PORTS, counts, version_text
+from lycan.results import RISKY_PORTS, all_findings, counts, version_text
 
 CVE_ID = re.compile(r"CVE-\d{4}-\d{4,}")  # bağlantıya yalnızca gerçek CVE kimliği girer
 SEVERITY_CLASS = {"CRITICAL": "crit", "HIGH": "high", "MEDIUM": "med", "LOW": "low"}
@@ -52,7 +52,7 @@ def e(value):
 
 def _todo(result):
     """"Önce bunları yap" listesi: kritik/yüksek CVE'li sürümler önce, sonra riskli kapılar."""
-    items = []
+    items = [f"Port {port}: {f['title']} {f['fix']}" for port, f in all_findings(result)]
     by_risk = sorted(
         (p for p in result["open"] if p.get("cves")),
         key=lambda p: (counts(p["cves"])["CRITICAL"], counts(p["cves"])["HIGH"]),
@@ -97,6 +97,9 @@ def render(result):
         f'<div class="card"><b>{len(open_ports)}</b><span>open ports</span></div>',
         f'<div class="card{" warn" if risky else ""}"><b>{risky}</b><span>risky ports open</span></div>',
     ]
+    if result.get("checks"):
+        problems = len(all_findings(result))
+        out.append(f'<div class="card{" alert" if problems else ""}"><b>{problems}</b><span>configuration problems</span></div>')
     if result.get("cve_lookup"):
         out += [
             f'<div class="card{" alert" if total["CRITICAL"] else ""}"><b>{total["CRITICAL"]}</b><span>critical possible CVEs</span></div>',
@@ -110,6 +113,16 @@ def render(result):
         out.append('<ol class="todo">' + "".join(f"<li>{e(t)}</li>" for t in todo) + "</ol>")
     else:
         out.append('<p class="note">Nothing urgent found in this hunt.</p>')
+
+    pairs = all_findings(result)
+    if pairs:
+        out.append("<h2>Configuration problems</h2>")
+        out.append('<div class="wrap"><table><tr><th>Port</th><th>Risk</th><th>Problem</th><th>Fix</th></tr>')
+        for port, f in pairs:
+            css = SEVERITY_CLASS.get(f["severity"], "low")
+            out.append(f'<tr><td><code>{e(port)}</code></td><td><span class="tag {css}">{e(f["severity"])}</span></td>'
+                       f'<td>{e(f["title"])}</td><td class="note">{e(f["fix"])}</td></tr>')
+        out.append("</table></div>")
 
     out.append("<h2>Open ports</h2>")
     if not open_ports:
