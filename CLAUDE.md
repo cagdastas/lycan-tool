@@ -21,7 +21,14 @@ Kullanıcıyla Türkçe konuş; her adımı kısa ve sade anlat.
   tutmuyor, 0 döndü; `cpeName` + `*` güncelleme alanı çalışıyor). Ürün→CPE tablosu `CPE_NAMES`
   (nginx ve vsftpd iki adla). Anahtarsız 6,5 sn aralık, `NVD_API_KEY` isteğe bağlı. Önbellek
   `~/.lycan/cve-cache.json`, 1 gün. Sonuç "olası" diye yazılır; dağıtım varsa backport uyarısı.
-  Sırada: Kali VM'de gerçek deneme, sonra 0.2.0 + push (kullanıcıya sor).
+- 🔶 Aşama 4+5 (2026-10-24, commit yok/sorulacak): `lycan/results.py` taramayı tek sözlükte toplar
+  (`collect`, `save`/`load`, biçim `format: 1`); `hunt --save x.json`. `lycan report x.json [--out] [--open]`
+  (`lycan/report.py`): tek dosya HTML, CSP `default-src 'none'`, her değer `html.escape`, CVE bağlantısı
+  yalnızca `CVE-\d{4}-\d+` kimliğe. `lycan watch <hedef>` (`lycan/watch.py`): ilk çalıştırma temeli
+  `~/.lycan/baselines/<ip>.json`'a yazar; sonra açılan/kapanan kapı, sürüm değişimi, yeni CVE; fark varsa
+  çıkış kodu 1, `--update` kabul eder.
+  Sırada: Kali VM'de gerçek deneme, sonra 0.2.0 + push (kullanıcıya sor). Eksikler: UDP, yapılandırma
+  kontrolleri (Redis/Mongo kimliksiz erişim; FTP anonim giriş yalnızca açık seçenekle).
 - GitHub: `cagtas0/lycan-tool` (public). Kurulum: `pip install git+https://github.com/cagtas0/lycan-tool.git`.
 - Site (lycansoc.com) pasif kalır; port taraması asla siteden yapılmaz. Sitede yalnızca CLI'yı anlatan bölüm olur.
 

@@ -5,14 +5,16 @@ kelimeleri (argümanları) okur ve hangi komutun istendiğini bize söyler.
 """
 
 import argparse
-
 import sys
+import webbrowser
+from pathlib import Path
 
 from lycan import __version__
-from lycan import banner
-from lycan import cve
 from lycan import hunt
+from lycan import report
+from lycan import results
 from lycan import scan
+from lycan import watch
 
 
 def cmd_version(args):
@@ -37,67 +39,76 @@ def cmd_scan(args):
     print(f"{len(ports)} ports listening, {exposed} reachable from the network.")
 
 
-def cmd_hunt(args):
+def prepare(args):
+    """Hedefi ve kapıları okur, yasal kilidi kontrol eder. Sorun varsa çıkar."""
     try:
         ports = hunt.parse_ports(args.ports) if args.ports else sorted(hunt.COMMON_PORTS)
         ip = hunt.resolve(args.target)
         hunt.check_allowed(ip)
     except (ValueError, hunt.NotAllowed) as error:
-        print(f"lycan: {error}", file=sys.stderr)
-        sys.exit(2)
+        fail(error)
+    return ip, ports
 
+
+def fail(error):
+    print(f"lycan: {error}", file=sys.stderr)
+    sys.exit(2)
+
+
+def run(args, ip, ports):
+    """Taramayı yapar ve sonucu döner (hunt ve watch ortak kullanır)."""
     print(f"Hunting {args.target} ({ip}) on {len(ports)} ports...")
-    found = hunt.hunt(ip, ports, timeout=args.timeout)
+    return results.collect(
+        args.target, ip, ports, timeout=args.timeout,
+        read_banners=args.banner, find_cves=args.cve,
+    )
 
+
+def cmd_hunt(args):
+    ip, ports = prepare(args)
+    result = run(args, ip, ports)
+    print_result(result)
+    if args.save:
+        try:
+            results.save(result, args.save)
+        except OSError as error:
+            fail(f"Cannot save to {args.save}: {error.strerror}.")
+        print(f"Saved to {args.save}. Make a report with: lycan report {args.save}")
+
+
+def print_result(result):
+    found = result["open"]
     if not found:
         print("No open ports found.")
         return
 
-    if args.cve:
-        args.banner = True  # CVE aramak için önce sürümü okumak gerekir
-
-    if not args.banner:
-        print()
+    print()
+    if not result["banners"]:
         print(f"{'PORT':>6}  {'SERVICE':<12}NOTE")
         for f in found:
             print(f"{f['port']:>6}  {f['service']:<12}{f['note']}")
     else:
-        print("Reading banners...")
-        banners = banner.grab_all(ip, [f["port"] for f in found])
-        print()
         print(f"{'PORT':>6}  {'SERVICE':<12}{'VERSION':<30}NOTE")
         for f in found:
-            print(f"{f['port']:>6}  {f['service']:<12}{version_text(banners[f['port']]):<30}{f['note']}")
-        if args.cve:
-            print_cves(found, banners)
+            version = results.version_text(f["banner"])[:28]
+            print(f"{f['port']:>6}  {f['service']:<12}{version:<30}{f['note']}")
+    if result["cve_lookup"]:
+        print_cves(found)
     print()
-    print(f"{len(found)} open of {len(ports)} checked.")
+    print(f"{len(found)} open of {result['ports_checked']} checked.")
 
 
-def version_text(info):
-    """Tabloda gösterilecek sürüm: tanınırsa "OpenSSH 9.2p1", tanınmazsa ham satır."""
-    if info is None:
-        return "-"  # program hiç konuşmadı
-    if info["product"]:
-        return f"{info['product']} {info['version']}"
-    return info["raw"][:28] or "-"
-
-
-def print_cves(found, banners):
+def print_cves(found):
     """Her tanınan sürüm için NVD'deki olası açıkları yazar (en yüksek puanlı 5 tanesi)."""
-    print()
-    print("Looking up known vulnerabilities on NVD.")
-    print("Only the product and version are sent (e.g. \"OpenSSH 9.2p1\"), never the address.")
     for f in found:
-        info = banners[f["port"]]
+        info = f["banner"]
         if not info or not info["product"]:
             continue
-        name = f"{info['product']} {info['version']}"
+        name = results.version_text(info)
+        cves = f["cves"]
         print()
-        try:
-            cves = cve.lookup(info["product"], info["version"])
-        except cve.NvdError as error:
-            print(f"{f['port']:>6}  {name}: lookup failed. {error}")
+        if f["cve_error"]:
+            print(f"{f['port']:>6}  {name}: lookup failed. {f['cve_error']}")
             continue
         if cves is None:
             print(f"{f['port']:>6}  {name}: not in Lycan's product list yet, skipped.")
@@ -106,15 +117,87 @@ def print_cves(found, banners):
             print(f"{f['port']:>6}  {name}: no known CVEs in NVD.")
             continue
 
-        counts = [f"{sum(c['severity'] == s for c in cves)} {s.lower()}" for s in ("CRITICAL", "HIGH")]
-        print(f"{f['port']:>6}  {name}: {len(cves)} possible CVEs ({', '.join(counts)})")
+        c = results.counts(cves)
+        print(f"{f['port']:>6}  {name}: {len(cves)} possible CVEs ({c['CRITICAL']} critical, {c['HIGH']} high)")
         if info["distro"]:
             print(f"        {info['distro']} build: fixes are often added without changing the version.")
             print("        Check the installed package version with your package manager before acting.")
-        for c in cves[:5]:
-            print(f"        {c['id']:<16}{c['score']:>4.1f} {c['severity']:<9}{c['summary'][:70]}")
+        for cv in cves[:5]:
+            print(f"        {cv['id']:<16}{cv['score']:>4.1f} {cv['severity']:<9}{cv['summary'][:70]}")
         if len(cves) > 5:
             print(f"        +{len(cves) - 5} more: https://nvd.nist.gov/vuln/search")
+
+
+def cmd_report(args):
+    try:
+        result = results.load(args.file)
+    except ValueError as error:
+        fail(error)
+    out = Path(args.out) if args.out else Path(args.file).with_suffix(".html")
+    try:
+        out.write_text(report.render(result), encoding="utf-8")
+    except OSError as error:
+        fail(f"Cannot write {out}: {error.strerror}.")
+    print(f"Report written to {out}")
+    if args.open:
+        webbrowser.open(out.resolve().as_uri())
+
+
+def cmd_watch(args):
+    ip, ports = prepare(args)
+    path = Path(args.baseline) if args.baseline else watch.baseline_path(ip)
+    try:
+        old = results.load(path) if path.exists() else None
+    except ValueError as error:
+        fail(error)
+
+    new = run(args, ip, ports)
+    print_result(new)
+    print()
+
+    if old is None:
+        save_baseline(new, path)
+        print(f"First watch: this hunt is now the baseline ({path}).")
+        print("Run the same command later to see what changed.")
+        return
+
+    changes = watch.compare(old, new)
+    if not changes:
+        print(f"No changes since the baseline ({old['time']}).")
+        return
+
+    print(f"{len(changes)} change(s) since the baseline ({old['time']}):")
+    for change in changes:
+        print(f"  ! {change['text']}")
+    if args.update:
+        save_baseline(new, path)
+        print("Baseline updated: these changes are now the normal state.")
+    else:
+        print("If these changes are expected, run again with --update to accept them.")
+    sys.exit(1)  # betikler ve zamanlanmış görevler "değişiklik var" diye anlasın
+
+
+def save_baseline(result, path):
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        results.save(result, path)
+    except OSError as error:
+        fail(f"Cannot save the baseline to {path}: {error.strerror}.")
+
+
+def add_hunt_options(cmd):
+    """hunt ve watch aynı tarama seçeneklerini kullanır."""
+    cmd.add_argument("target", help="IP address or name, e.g. 192.168.1.20")
+    cmd.add_argument("--ports", help="e.g. 22,80,8000-8100 (default: 20 common ports)")
+    cmd.add_argument("--timeout", type=float, default=0.5, help="seconds per port (default 0.5)")
+    cmd.add_argument(
+        "--banner", action="store_true",
+        help="also read each open port's greeting to show program and version",
+    )
+    cmd.add_argument(
+        "--cve", action="store_true",
+        help="also look up known vulnerabilities for each version on NVD (needs internet; implies --banner)",
+    )
 
 
 def build_parser():
@@ -136,18 +219,31 @@ def build_parser():
         description="Only private network addresses are allowed (127.x, 10.x, "
         "172.16-31.x, 192.168.x). Hunt only machines you own or may test.",
     )
-    hunt_cmd.add_argument("target", help="IP address or name, e.g. 192.168.1.20")
-    hunt_cmd.add_argument("--ports", help="e.g. 22,80,8000-8100 (default: 20 common ports)")
-    hunt_cmd.add_argument("--timeout", type=float, default=0.5, help="seconds per port (default 0.5)")
-    hunt_cmd.add_argument(
-        "--banner", action="store_true",
-        help="also read each open port's greeting to show program and version",
-    )
-    hunt_cmd.add_argument(
-        "--cve", action="store_true",
-        help="also look up known vulnerabilities for each version on NVD (needs internet; implies --banner)",
-    )
+    add_hunt_options(hunt_cmd)
+    hunt_cmd.add_argument("--save", metavar="FILE", help="also save the result as JSON, e.g. hunt.json")
     hunt_cmd.set_defaults(func=cmd_hunt)
+
+    report_cmd = commands.add_parser(
+        "report",
+        help="Turn a saved hunt (JSON) into an HTML report.",
+        description="Example: lycan hunt 192.168.1.20 --cve --save hunt.json, then lycan report hunt.json",
+    )
+    report_cmd.add_argument("file", help="JSON file saved with lycan hunt --save")
+    report_cmd.add_argument("--out", metavar="FILE", help="HTML file to write (default: same name, .html)")
+    report_cmd.add_argument("--open", action="store_true", help="open the report in your browser")
+    report_cmd.set_defaults(func=cmd_report)
+
+    watch_cmd = commands.add_parser(
+        "watch",
+        help="Hunt again and show what changed since the baseline.",
+        description="The first run saves a baseline. Later runs compare with it and exit with code 1 "
+        "if something changed. Same address rules as hunt.",
+    )
+    add_hunt_options(watch_cmd)
+    watch_cmd.add_argument("--baseline", metavar="FILE",
+                           help="baseline file (default: ~/.lycan/baselines/<address>.json)")
+    watch_cmd.add_argument("--update", action="store_true", help="accept the changes as the new baseline")
+    watch_cmd.set_defaults(func=cmd_watch)
 
     return parser
 

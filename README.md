@@ -59,6 +59,24 @@ These are **possible** matches: NVD only looks at the version number. Linux dist
 
 Limits, on purpose: one machine at a time, at most 1024 ports per run, 50 checks at once. Public addresses and names that resolve to them are refused before any packet is sent.
 
+Add `--save hunt.json` to keep the result as a JSON file for `report` and later comparison.
+
+### `lycan report <file.json>`
+Turns a saved hunt into a single HTML file you can open in any browser: summary cards, a "do these first" list, every open port with its version, and the possible CVEs with links to NVD. The page loads nothing from the internet and runs no scripts; text that came from the scanned machine is escaped so it can never act as HTML.
+
+```
+lycan hunt 192.168.1.20 --cve --save hunt.json
+lycan report hunt.json --open
+```
+
+### `lycan watch <target>`
+Hunts again and tells you what changed since the first time: ports that opened or closed, versions that changed and new possible CVEs. The first run saves a baseline in `~/.lycan/baselines/`. When something changed it exits with code 1, so it works in a scheduled task. If the change is expected, accept it with `--update`. Takes the same options and address rules as `hunt`.
+
+```
+lycan watch 192.168.1.20 --banner
+  ! Port 3389 (rdp) is now OPEN. It was closed before.
+```
+
 ### `lycan version`
 Prints the installed version.
 
